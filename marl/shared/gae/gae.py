@@ -1,45 +1,63 @@
 # marl/shared/gae/gae.py
-from typing import Tuple
+
+from __future__ import annotations
 import torch
 
-
+@torch.no_grad()
 def compute_gae(
-    rewards: torch.Tensor,      # [N]
-    values: torch.Tensor,       # [N]
-    dones: torch.Tensor,        # [N]
+    rewards: torch.Tensor,
+    values: torch.Tensor,
+    dones: torch.Tensor,
     gamma: float = 0.99,
     lam: float = 0.95,
-    last_value: float = 0.0,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    last_value: torch.Tensor | float | None = None,
+):
     """
-    Compute Generalized Advantage Estimation (GAE).
+    GAE su una singola sequenza temporale (TEAM o per-agente).
+    Tutti i tensori devono essere 1D di lunghezza T (dopo eventuale allineamento a monte).
 
-    Inputs are flattened over (time * agents).
-    We assume the rollout is time-major concatenated.
+    Args:
+        rewards: [T]
+        values:  [T] stime del V_t
+        dones:   [T] (0. o 1.) done al passo t (episodio finito -> bootstrap interrotto)
+        gamma:   sconto
+        lam:     lambda GAE
+        last_value: opzionale V_{T} per bootstrap (stato successivo all’ultimo step). Se None, assume 0.
 
     Returns:
-        advantages: [N]
-        returns:    [N]
+        advantages: [T]
+        returns:    [T] = advantages + values
     """
-    assert rewards.ndim == 1
-    assert values.ndim == 1
-    assert dones.ndim == 1
+    # squeeze e cast coerenti
+    rewards = rewards.view(-1).detach()
+    values  = values.view(-1).detach()
+    dones   = dones.view(-1).detach()
 
-    N = rewards.size(0)
-    advantages = torch.zeros(N, device=rewards.device)
+    T = rewards.shape[0]
+    device = rewards.device
+    dtype  = rewards.dtype
 
-    last_adv = 0.0
-    for t in reversed(range(N)):
-        if t == N - 1:
-            next_value = last_value
-            next_non_terminal = 1.0 - dones[t]
-        else:
-            next_value = values[t + 1]
-            next_non_terminal = 1.0 - dones[t + 1]
+    if last_value is None:
+        next_value = torch.tensor(0.0, device=device, dtype=dtype)
+    else:
+        if not torch.is_tensor(last_value):
+            last_value = torch.tensor(float(last_value), device=device, dtype=dtype)
+        # se viene passato un vettore (es. per-agente), usa media come team bootstrap
+        if last_value.numel() > 1:
+            last_value = last_value.mean()
+        next_value = last_value.to(device=device, dtype=dtype).view(())
 
-        delta = rewards[t] + gamma * next_value * next_non_terminal - values[t]
-        last_adv = delta + gamma * lam * next_non_terminal * last_adv
-        advantages[t] = last_adv
+    advantages = torch.zeros(T, device=device, dtype=dtype)
+    gae = torch.tensor(0.0, device=device, dtype=dtype)
+
+    for t in reversed(range(T)):
+        # done=1 ⇒ next_non_terminal=0 ⇒ non bootstrappo
+        next_non_terminal = 1.0 - (dones[t] > 0.5).float()
+        v_t   = values[t]
+        v_tp1 = next_value if t == T - 1 else values[t + 1]
+        delta = rewards[t] + gamma * v_tp1 * next_non_terminal - v_t
+        gae   = delta + gamma * lam * next_non_terminal * gae
+        advantages[t] = gae
 
     returns = advantages + values
     return advantages, returns

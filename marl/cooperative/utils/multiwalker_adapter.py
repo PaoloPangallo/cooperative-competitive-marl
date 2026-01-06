@@ -70,3 +70,34 @@ class MultiWalkerAdapter:
         actions_dict = self.tensor_to_action_dict(out.action)
 
         return actions_dict, out.logprob, out.value, out.entropy
+
+    def global_obs_dict_to_tensor(self, obs_dict):
+        """
+        Build enriched global state for MAPPO.
+        Global state includes:
+          - concatenation of all agents' observations
+          - mean observation
+          - std observation
+
+        Returns:
+            global_obs: torch.Tensor [1, global_obs_dim]
+        """
+        obs_list = [obs_dict[a] for a in self.agents]  # list of (obs_dim,)
+        obs_stack = np.stack(obs_list, axis=0)  # [n_agents, obs_dim]
+
+        concat_obs = obs_stack.reshape(-1)  # [n_agents * obs_dim]
+        mean_obs = obs_stack.mean(axis=0)  # [obs_dim]
+        std_obs = obs_stack.std(axis=0)  # [obs_dim]
+
+        global_obs = np.concatenate(
+            [concat_obs, mean_obs, std_obs],
+            axis=0,
+        )
+
+        return torch.tensor(
+            global_obs,
+            dtype=torch.float32,
+            device=self.device,
+        ).unsqueeze(0)
+
+

@@ -1,12 +1,17 @@
 # marl/cooperative/ippo/train_ippo_multiwalker.py
 import numpy as np
 import torch
+import wandb
 
 from marl.environments.multiwalker.env import MultiWalkerEnv
 from marl.cooperative.utils.multiwalker_adapter import MultiWalkerAdapter
 from marl.shared.buffers.rollout_buffer import RolloutBuffer
 from marl.shared.gae.gae import compute_gae
 from marl.shared.ppo.ppo_update import ppo_update
+
+from marl.shared.logging.wandb_logger import WandbLogger
+
+
 
 
 def train_ippo(
@@ -28,6 +33,20 @@ def train_ippo(
     optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
 
     buffer = RolloutBuffer(obs_dim=31, act_dim=4)
+
+    logger = WandbLogger(
+        project="marl-from-scratch",
+        name="ippo-multiwalker",
+        config={
+            "algorithm": "IPPO",
+            "env": "MultiWalker",
+            "n_walkers": 3,
+            "gamma": gamma,
+            "lambda": lam,
+            "rollout_steps": rollout_steps,
+            "lr": 3e-4,
+        },
+    )
 
     for it in range(1, n_iters + 1):
         buffer.reset()
@@ -89,6 +108,17 @@ def train_ippo(
             batch_size=128,
         )
 
+        logger.log(
+            {
+                "reward_mean": float(np.mean(ep_rewards)),
+                "loss": stats["loss"],
+                "policy_loss": stats["policy_loss"],
+                "value_loss": stats["value_loss"],
+                "entropy": stats["entropy"],
+            },
+            step=it,
+        )
+
         print(
             f"[Iter {it:03d}] "
             f"Reward: {np.mean(ep_rewards):.3f} | "
@@ -97,6 +127,8 @@ def train_ippo(
         )
 
     env.close()
+
+    logger.close()
 
 
 if __name__ == "__main__":

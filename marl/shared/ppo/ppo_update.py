@@ -1,4 +1,3 @@
-# marl/shared/ppo/ppo_update.py
 from typing import Dict
 import torch
 import torch.nn as nn
@@ -10,11 +9,11 @@ from marl.shared.networks.mlp_actor_critic import MLPActorCritic
 def ppo_update(
     policy: MLPActorCritic,
     optimizer: torch.optim.Optimizer,
-    obs: torch.Tensor,          # [N, obs_dim]
-    actions: torch.Tensor,      # [N, act_dim]
-    old_logprobs: torch.Tensor, # [N]
-    returns: torch.Tensor,      # [N]
-    advantages: torch.Tensor,   # [N]
+    obs: torch.Tensor,           # [N, obs_dim]
+    actions: torch.Tensor,       # [N, act_dim]
+    old_logprobs: torch.Tensor,  # [N]
+    returns: torch.Tensor,       # [N]
+    advantages: torch.Tensor,    # [N] (ALREADY normalized outside)
     clip_eps: float = 0.2,
     value_coef: float = 0.5,
     entropy_coef: float = 0.01,
@@ -22,12 +21,9 @@ def ppo_update(
     batch_size: int = 64,
 ) -> Dict[str, float]:
     """
-    Perform PPO update (IPPO).
-    Returns mean losses for logging.
+    Perform PPO update.
+    Assumes advantages are already normalized.
     """
-
-    # normalize advantages
-    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     dataset = TensorDataset(
         obs,
@@ -57,10 +53,9 @@ def ppo_update(
 
             mean, values = policy(b_obs)
             std = torch.exp(policy.log_std).expand_as(mean)
-
             dist = torch.distributions.Normal(mean, std)
 
-            # inverse tanh for logprob
+            # ----- Log-prob with tanh correction -----
             eps = 1e-6
             raw_action = torch.atanh(torch.clamp(b_actions, -1 + eps, 1 - eps))
             logp = dist.log_prob(raw_action).sum(-1)
@@ -68,17 +63,18 @@ def ppo_update(
 
             ratio = torch.exp(logp - b_old_logp)
 
+            # ----- Policy loss (clipped) -----
             surr1 = ratio * b_adv
             surr2 = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * b_adv
             policy_loss = -torch.min(surr1, surr2).mean()
 
-            value_pred_clipped = b_returns + (values - b_returns).clamp(-0.2, 0.2)
-            value_loss_unclipped = (values - b_returns).pow(2)
-            value_loss_clipped = (value_pred_clipped - b_returns).pow(2)
-            value_loss = 0.5 * torch.max(value_loss_unclipped, value_loss_clipped).mean()
+            # ----- Value loss (NO clipping for now, safer in MARL) -----
+            value_loss = 0.5 * (values - b_returns).pow(2).mean()
 
+            # ----- Entropy -----
             entropy = dist.entropy().sum(-1).mean()
 
+            # ----- Total loss -----
             loss = (
                 policy_loss
                 + value_coef * value_loss
