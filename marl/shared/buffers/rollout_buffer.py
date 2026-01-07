@@ -13,6 +13,7 @@ class RolloutBatch:
     values: torch.Tensor     # [N]
     rewards: torch.Tensor    # [N]
     dones: torch.Tensor      # [N]
+    global_obs: torch.Tensor  # [N, global_obs_dim]
 
 
 class RolloutBuffer:
@@ -36,6 +37,7 @@ class RolloutBuffer:
         self.dones: List[torch.Tensor]
 
         self.reset()
+        self.global_obs: List[torch.Tensor]
 
     def reset(self):
         self.obs = []
@@ -44,6 +46,7 @@ class RolloutBuffer:
         self.values = []
         self.rewards = []
         self.dones = []
+        self.global_obs = []
 
     def add(
         self,
@@ -53,6 +56,7 @@ class RolloutBuffer:
         values: torch.Tensor,     # [n_agents]
         rewards: torch.Tensor,    # [n_agents]
         dones: torch.Tensor,      # [n_agents]
+        global_obs: torch.Tensor,  # [1, global_obs_dim]
     ):
         self.obs.append(obs)
         self.actions.append(actions)
@@ -60,6 +64,9 @@ class RolloutBuffer:
         self.values.append(values)
         self.rewards.append(rewards)
         self.dones.append(dones)
+        self.global_obs.append(
+            global_obs.repeat(obs.shape[0], 1)
+        )
 
     def get(self) -> RolloutBatch:
         obs = torch.cat(self.obs, dim=0)
@@ -68,6 +75,7 @@ class RolloutBuffer:
         values = torch.cat(self.values, dim=0)
         rewards = torch.cat(self.rewards, dim=0)
         dones = torch.cat(self.dones, dim=0)
+        global_obs = torch.cat(self.global_obs, dim=0)
 
         return RolloutBatch(
             obs=obs,
@@ -76,5 +84,6 @@ class RolloutBuffer:
             values=values,
             rewards=rewards,
             dones=dones,
+            global_obs=global_obs,
         )
 

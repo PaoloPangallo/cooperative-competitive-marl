@@ -1,4 +1,5 @@
 # marl/environments/multiwalker/env.py
+from typing import Dict, Any
 
 from pettingzoo.sisl import multiwalker_v9
 import numpy as np
@@ -55,14 +56,40 @@ class MultiWalkerEnv:
         return observations
 
     def step(self, actions):
-        """
-        actions: dict(agent -> action)
-        """
         observations, rewards, terminations, truncations, infos = self.env.step(actions)
 
         done = all(terminations.values()) or all(truncations.values())
 
-        return observations, rewards, done, infos
+        return observations, rewards, terminations, done, infos
+
+    # marl/cooperative/utils/multiwalker_status.py
+
+    def extract_step(self, obs: Dict[str, np.ndarray]) -> Dict[str, Any]:
+        # agenti presenti = vivi
+        alive_agents = len(obs)
+        fallen_agents = self.n_agents - alive_agents
+
+        alive_x = [obs[a][0] for a in obs]
+        mean_x = float(np.mean(alive_x)) if alive_x else 0.0
+
+        delta_x = 0.0 if self.prev_mean_x is None else mean_x - self.prev_mean_x
+        is_advancing = delta_x > 0.0
+        self.prev_mean_x = mean_x
+
+        return {
+            "health": {
+                "alive_agents": alive_agents,
+                "fallen_agents": fallen_agents,
+            },
+            "progress": {
+                "mean_x": mean_x,
+                "delta_x": delta_x,
+                "is_advancing": bool(is_advancing),
+            },
+            "episode": {
+                "done": False,
+            },
+        }
 
     def close(self):
         self.env.close()
