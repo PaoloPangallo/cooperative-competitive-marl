@@ -1,50 +1,30 @@
-import { startTraining } from "./api/train";
-import useTrainStatus from "./hooks/useTrainStatus";
-import "./App.css";
+import { Box } from "@mui/material";
+import TrainingPage from "./features/training/TrainingPage";
 
-function App() {
-  const { status, error } = useTrainStatus(1000);
-
-  const onStart = async () => {
-    await startTraining();
-  };
-
-  const fmt = (v, digits = 3) =>
-  typeof v === "number" && Number.isFinite(v)
-    ? v.toFixed(digits)
-    : "—";
-
-
+export default function App() {
   return (
-    <div style={{ padding: 20 }}>
-      <h1>🧠 MARL – MAPPO MultiWalker</h1>
-
-      <button onClick={onStart}>▶ Start Training</button>
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
-      {status && (
-        <div style={{ marginTop: 20 }}>
-          <p><b>State:</b> {status.state}</p>
-          <p><b>Iteration:</b> {status.iter}</p>
-          <p><b>Message:</b> {status.message}</p>
-
-          {status.multiwalker && (
-            <>
-              <h3>🤖 MultiWalker Status</h3>
-              <p>Alive: {status.multiwalker.health.alive_agents}</p>
-              <p>Fallen: {status.multiwalker.health.fallen_agents}</p>
-              <p>
-                Advancing:{" "}
-                {status.multiwalker.progress.is_advancing ? "✅" : "❌"}
-              </p>
-              <p>Δx: {fmt(status.multiwalker.progress.delta_x, 3)}</p>
-            </>
-          )}
-        </div>
-      )}
-    </div>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        position: "relative",
+        overflow: "hidden",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: `
+            radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%)
+          `,
+          pointerEvents: "none",
+        },
+      }}
+    >
+      <TrainingPage />
+    </Box>
   );
 }
-
-export default App;
