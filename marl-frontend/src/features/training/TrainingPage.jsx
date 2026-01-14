@@ -29,7 +29,7 @@ export default function TrainingPage() {
     const message = statusError || metricsError;
 
     return (
-      <Container maxWidth="lg" sx={{ pt: 8 }}>
+      <Container maxWidth={false} sx={{ py: 4 }}>
         <Fade in timeout={600}>
           <Paper
             elevation={0}
@@ -105,16 +105,20 @@ export default function TrainingPage() {
 
   /* ---------- MAIN ---------- */
 
-  return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Fade in timeout={800}>
-        <Box>
-          <TrainingHeader status={status} />
-          <TrainingOverview status={status} summary={summary} />
-          <WalkerStatusPanel multiwalker={status.multiwalker} />
-          <MetricsCharts metrics={metrics} />
-        </Box>
-      </Fade>
-    </Container>
-  );
+ return (
+  <Box
+    sx={{
+      maxWidth: 1600,
+      mx: "auto",      // 🔥 CENTRA ORIZZONTALMENTE
+      px: 3,           // padding laterale
+      py: 4,
+    }}
+  >
+    <TrainingHeader status={status} />
+    <TrainingOverview status={status} summary={summary} metrics={metrics} />
+    <WalkerStatusPanel multiwalker={status.multiwalker} />
+    <MetricsCharts metrics={metrics} summary={summary} />
+  </Box>
+);
+
 }

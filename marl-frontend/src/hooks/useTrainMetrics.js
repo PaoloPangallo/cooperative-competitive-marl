@@ -3,6 +3,7 @@ import { getTrainMetrics } from "../api/metric.api.js";
 
 /* ================================
    Normalizzazione metrica ROBUSTA
+   Compatibile MAPPO classico
    ================================ */
 function normalizeMetric(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -28,6 +29,13 @@ function normalizeMetric(raw) {
     raw.forward_mean ??
     null;
 
+  const delta_x =
+    raw.delta_x ??
+    raw.dx ??
+    raw.delta ??
+    raw.progress_delta ??
+    null;
+
   const alive_agents =
     raw.alive_agents ??
     raw.alive ??
@@ -42,17 +50,43 @@ function normalizeMetric(raw) {
     raw.num_fallen ??
     null;
 
-  if (typeof iter !== "number" || typeof reward_mean !== "number") {
-    return null;
-  }
+  /* 🔥 MAPPO learning signals */
+  const actor_loss =
+    raw.actor_loss ??
+    raw.policy_loss ??
+    raw.actor ??
+    null;
+
+  const critic_loss =
+    raw.critic_loss ??
+    raw.value_loss ??
+    raw.critic ??
+    null;
+
+  const entropy =
+    raw.entropy ??
+    raw.ent ??
+    null;
+
+  if (typeof iter !== "number") return null;
 
   return {
     iter,
-    reward_mean,
+
+    // performance
+    reward_mean: typeof reward_mean === "number" ? reward_mean : undefined,
     mean_x: typeof mean_x === "number" ? mean_x : undefined,
+    delta_x: typeof delta_x === "number" ? delta_x : undefined,
     alive_agents: typeof alive_agents === "number" ? alive_agents : undefined,
     fallen_agents: typeof fallen_agents === "number" ? fallen_agents : undefined,
+
+    // learning
+    actor_loss: typeof actor_loss === "number" ? actor_loss : undefined,
+    critic_loss: typeof critic_loss === "number" ? critic_loss : undefined,
+    entropy: typeof entropy === "number" ? entropy : undefined,
   };
+
+
 }
 
 /* ================================
@@ -62,6 +96,8 @@ export function useTrainMetrics(interval = 2000) {
   const [metrics, setMetrics] = useState(null); // null = loading
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
+  const phase = inferPhase(metrics);
+
 
   // evita duplicati per iterazione
   const seenIters = useRef(new Set());
@@ -80,14 +116,14 @@ export function useTrainMetrics(interval = 2000) {
         if (Array.isArray(data.metrics)) {
           let added = false;
 
-          data.metrics.forEach(raw => {
+          data.metrics.forEach((raw) => {
             const m = normalizeMetric(raw);
             if (!m) return;
 
             if (seenIters.current.has(m.iter)) return;
             seenIters.current.add(m.iter);
 
-            setMetrics(prev => {
+            setMetrics((prev) => {
               if (!prev) return [m];
               return [...prev, m];
             });
@@ -98,7 +134,6 @@ export function useTrainMetrics(interval = 2000) {
           if (added) {
             setSummary(data.summary ?? null);
           }
-
           return;
         }
 
@@ -111,7 +146,7 @@ export function useTrainMetrics(interval = 2000) {
         if (seenIters.current.has(m.iter)) return;
         seenIters.current.add(m.iter);
 
-        setMetrics(prev => {
+        setMetrics((prev) => {
           if (!prev) return [m];
           return [...prev, m];
         });
@@ -119,7 +154,9 @@ export function useTrainMetrics(interval = 2000) {
         setSummary(data.summary ?? null);
 
       } catch (e) {
-        if (alive) setError(e?.message ?? "Metrics fetch error");
+        if (alive) {
+          setError(e?.message ?? "Metrics fetch error");
+        }
       }
     };
 
@@ -132,5 +169,41 @@ export function useTrainMetrics(interval = 2000) {
     };
   }, [interval]);
 
-  return { metrics, summary, error };
+  return { metrics, summary, phase, error };
+
 }
+
+
+function inferPhase(metrics, window = 20) {
+  if (!Array.isArray(metrics) || metrics.length < window) {
+    return "BOOTSTRAP";
+  }
+
+  const recent = metrics.slice(-window);
+
+  const aliveRate =
+    mean(recent.map((m) => safeNum(m.alive_agents, 0))) /
+    Math.max(1, mean(recent.map((m) => safeNum(m.alive_agents, 0))) +
+                mean(recent.map((m) => safeNum(m.fallen_agents, 0))));
+
+  const deltaXMA = mean(recent.map((m) => safeNum(m.delta_x, 0)));
+
+  // criterio concettuale (non magico):
+  // 1) prima devono stare in piedi
+  // 2) poi devono avanzare
+  if (aliveRate < 0.9) return "UNSTABLE";
+  if (Math.abs(deltaXMA) < 0.01) return "STABILITY";
+  return "LOCOMOTION";
+}
+
+function mean(arr) {
+  const v = arr.filter((x) => Number.isFinite(x));
+  if (v.length === 0) return 0;
+  return v.reduce((a, b) => a + b, 0) / v.length;
+}
+
+function safeNum(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+

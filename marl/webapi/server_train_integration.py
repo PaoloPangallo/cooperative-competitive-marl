@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 import wandb
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -319,6 +319,17 @@ def wandb_metrics(run_id: str):
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/train/metrics/history")
+def get_metrics_history(limit: int = Query(200, ge=1, le=5000)):
+    data = METRICS_RECORDER.get_tail(limit)
+    return {
+        "count": len(data),
+        "metrics": data,  # ✅ LISTA
+        "summary": METRICS_RECORDER.summary(),
+    }
+
 
 
 # ==========================================================

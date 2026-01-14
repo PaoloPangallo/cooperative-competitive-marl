@@ -1,6 +1,4 @@
 import {
-  AppBar,
-  Toolbar,
   Typography,
   Button,
   Chip,
@@ -8,205 +6,175 @@ import {
   Box,
   Paper,
   Fade,
+  LinearProgress,
 } from "@mui/material";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import PauseIcon from "@mui/icons-material/Pause";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
 
 import { startTraining, stopTraining } from "../../api/train.api";
 
 /**
- * TrainingHeader
- * Top command bar for training control
+ * TrainingHeader - Clean ML Platform Design
+ * Global command bar for MARL training
  */
-export default function TrainingHeader({ status }) {
-  const { state, iter, max_iter } = status;
+export default function TrainingHeader({ status, phase }) {
+  if (!status) return null;
+
+  const { state, iter, max_iter, progress } = status;
 
   const isRunning = state === "running";
   const isIdle = state === "idle" || state === "finished";
   const stateConfig = getStateConfig(state);
+  const pct = max_iter ? Math.round((progress || 0) * 100) : 0;
 
   return (
     <Fade in timeout={600}>
       <Paper
         elevation={0}
+        className="card"
         sx={{
-          mb: 4,
-          borderRadius: 4,
-          background: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255, 255, 255, 0.2)",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
-          overflow: "hidden",
-          position: "relative",
-          "&::before": {
-            content: '""',
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "4px",
-            background: "linear-gradient(90deg, #667eea 0%, #764ba2 100%)",
-          },
+          mb: "var(--sp-lg)",
+          borderTop: "3px solid var(--accent-primary)",
         }}
       >
-        <Box sx={{ p: 3 }}>
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={3}
-            alignItems={{ xs: "stretch", md: "center" }}
-          >
-            {/* Left: title */}
-            <Box sx={{ flexGrow: 1 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Box
+        <Box sx={{ p: "var(--sp-lg)" }}>
+          <Stack spacing="var(--sp-lg)">
+            {/* ================= TITLE + STATUS ================= */}
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing="var(--sp-lg)"
+              alignItems={{ xs: "stretch", md: "center" }}
+              sx={{ justifyContent: "space-between" }}
+            >
+              {/* Left: Title */}
+              <Box>
+                <Typography
+                  variant="h5"
                   sx={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 3,
-                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "2rem",
-                    boxShadow: "0 8px 24px rgba(102, 126, 234, 0.4)",
+                    fontWeight: 700,
+                    color: "var(--text-primary)",
+                    mb: "var(--sp-sm)",
                   }}
                 >
-                  🤖
-                </Box>
-                <Box>
-                  <Typography
-                    variant="h5"
-                    sx={{
-                      fontWeight: 800,
-                      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      letterSpacing: "-0.02em",
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    MARL Training
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ fontWeight: 600, mt: 0.5 }}
-                  >
-                    Multi-Agent Reinforcement Learning
-                  </Typography>
-                </Box>
+                  Training Session
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "var(--text-secondary)",
+                    fontWeight: 500,
+                  }}
+                >
+                  Multi-Agent Reinforcement Learning
+                </Typography>
               </Box>
-            </Box>
 
-            {/* Center: Stats */}
-            <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap" }}>
-              {/* Iteration Box */}
-              <Paper
-                elevation={0}
+              {/* Right: State Badge */}
+              <Chip
+                icon={stateConfig.icon}
+                label={stateConfig.label}
                 sx={{
-                  px: 3,
-                  py: 2,
-                  borderRadius: 3,
-                  background: "linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)",
-                  border: "2px solid rgba(102, 126, 234, 0.2)",
-                  minWidth: 140,
-                  textAlign: "center",
-                  transition: "all 0.3s ease",
+                  background: stateConfig.background,
+                  color: stateConfig.textColor,
+                  fontWeight: 700,
+                  fontSize: "0.875rem",
+                  height: 40,
+                  px: "var(--sp-md)",
+                  border: `1px solid ${stateConfig.borderColor}`,
+                  "& .MuiChip-icon": {
+                    color: "inherit",
+                    fontSize: "1.2rem",
+                  },
+                  transition: "all 0.2s ease",
                   "&:hover": {
-                    transform: "scale(1.05)",
-                    borderColor: "rgba(102, 126, 234, 0.4)",
+                    boxShadow: "var(--shadow-md)",
                   },
                 }}
-              >
+              />
+            </Stack>
+
+            {/* ================= PROGRESS BAR ================= */}
+            <Box>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: "var(--sp-sm)" }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  Progress
+                </Typography>
                 <Typography
                   variant="caption"
                   sx={{
                     fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    color: "text.secondary",
-                    display: "block",
-                    mb: 0.5,
+                    color: "var(--text-primary)",
                   }}
                 >
-                  Iteration
+                  {max_iter ? `${iter} / ${max_iter}` : iter} iterations
                 </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 800,
-                    color: "#667eea",
-                  }}
-                >
-                  {max_iter ? `${iter} / ${max_iter}` : iter}
-                </Typography>
-              </Paper>
-
-              {/* Status chip */}
-              <Box
+              </Stack>
+              <LinearProgress
+                variant="determinate"
+                value={pct}
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  px: 2,
+                  height: 6,
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--bg-tertiary)",
+                  "& .MuiLinearProgress-bar": {
+                    background: "var(--accent-primary)",
+                    borderRadius: "var(--radius-md)",
+                  },
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "var(--text-tertiary)",
+                  mt: "var(--sp-sm)",
+                  display: "block",
+                  fontWeight: 500,
                 }}
               >
-                <Chip
-                  label={state.toUpperCase()}
-                  icon={stateConfig.icon}
-                  sx={{
-                    background: stateConfig.gradient,
-                    color: "white",
-                    fontWeight: 800,
-                    fontSize: "0.8rem",
-                    letterSpacing: "0.05em",
-                    height: 40,
-                    px: 1,
-                    boxShadow: stateConfig.shadow,
-                    "& .MuiChip-label": {
-                      px: 2,
-                    },
-                    "& .MuiChip-icon": {
-                      color: "white",
-                      fontSize: "1.2rem",
-                    },
-                  }}
-                />
-              </Box>
-            </Stack>
+                {pct}% complete {max_iter && `· ${max_iter - iter} remaining`}
+              </Typography>
+            </Box>
 
-            {/* Controls */}
-            <Stack direction="row" spacing={1.5}>
+            {/* ================= CONTROLS ================= */}
+            <Stack direction="row" spacing="var(--sp-md)" sx={{ pt: "var(--sp-sm)" }}>
               <Button
                 variant="contained"
                 startIcon={<PlayArrowIcon />}
                 onClick={startTraining}
                 disabled={!isIdle}
                 sx={{
-                  background: isIdle
-                    ? "linear-gradient(135deg, #34c759 0%, #30d158 100%)"
-                    : "rgba(0, 0, 0, 0.12)",
+                  background: isIdle ? "var(--accent-primary)" : "var(--text-tertiary)",
                   color: "white",
-                  fontWeight: 700,
-                  px: 3,
-                  py: 1.5,
-                  borderRadius: 3,
+                  fontWeight: 600,
+                  px: "var(--sp-lg)",
+                  py: "0.625rem",
+                  borderRadius: "var(--radius-md)",
                   textTransform: "none",
-                  fontSize: "1rem",
-                  boxShadow: isIdle ? "0 8px 24px rgba(52, 199, 89, 0.4)" : "none",
-                  transition: "all 0.3s ease",
-                  "&:hover": {
-                    background: isIdle
-                      ? "linear-gradient(135deg, #30d158 0%, #34c759 100%)"
-                      : "rgba(0, 0, 0, 0.12)",
-                    transform: isIdle ? "translateY(-2px)" : "none",
-                    boxShadow: isIdle ? "0 12px 32px rgba(52, 199, 89, 0.5)" : "none",
-                  },
-                  "&:disabled": {
-                    color: "rgba(0, 0, 0, 0.26)",
-                  },
+                  fontSize: "0.95rem",
+                  border: "none",
+                  cursor: isIdle ? "pointer" : "not-allowed",
+                  transition: "all 0.2s ease",
+                  "&:hover": isIdle
+                    ? {
+                        background: "#0d8c6f",
+                        boxShadow: "var(--shadow-md)",
+                      }
+                    : {},
                 }}
               >
-                Start
+                Start Training
               </Button>
 
               <Button
@@ -215,32 +183,38 @@ export default function TrainingHeader({ status }) {
                 onClick={stopTraining}
                 disabled={!isRunning}
                 sx={{
-                  background: isRunning
-                    ? "linear-gradient(135deg, #ff3b30 0%, #ff453a 100%)"
-                    : "rgba(0, 0, 0, 0.12)",
+                  background: isRunning ? "#ef4444" : "var(--text-tertiary)",
                   color: "white",
-                  fontWeight: 700,
-                  px: 3,
-                  py: 1.5,
-                  borderRadius: 3,
+                  fontWeight: 600,
+                  px: "var(--sp-lg)",
+                  py: "0.625rem",
+                  borderRadius: "var(--radius-md)",
                   textTransform: "none",
-                  fontSize: "1rem",
-                  boxShadow: isRunning ? "0 8px 24px rgba(255, 59, 48, 0.4)" : "none",
-                  transition: "all 0.3s ease",
-                  "&:hover": {
-                    background: isRunning
-                      ? "linear-gradient(135deg, #ff453a 0%, #ff3b30 100%)"
-                      : "rgba(0, 0, 0, 0.12)",
-                    transform: isRunning ? "translateY(-2px)" : "none",
-                    boxShadow: isRunning ? "0 12px 32px rgba(255, 59, 48, 0.5)" : "none",
-                  },
-                  "&:disabled": {
-                    color: "rgba(0, 0, 0, 0.26)",
-                  },
+                  fontSize: "0.95rem",
+                  border: "none",
+                  cursor: isRunning ? "pointer" : "not-allowed",
+                  transition: "all 0.2s ease",
+                  "&:hover": isRunning
+                    ? {
+                        background: "#dc2626",
+                        boxShadow: "var(--shadow-md)",
+                      }
+                    : {},
                 }}
-              >
-                Stop
-              </Button>
+              />
+
+              {phase && (
+                <Chip
+                  label={`Phase: ${phase}`}
+                  sx={{
+                    background: "var(--bg-tertiary)",
+                    color: "var(--text-primary)",
+                    fontWeight: 600,
+                    border: "1px solid var(--border-color)",
+                    ml: "auto",
+                  }}
+                />
+              )}
             </Stack>
           </Stack>
         </Box>
@@ -249,35 +223,48 @@ export default function TrainingHeader({ status }) {
   );
 }
 
-/* ---------- helpers ---------- */
+/* ==================================================
+   STATE CONFIG - Icons + Colors
+   ================================================== */
 
 function getStateConfig(state) {
   const configs = {
     running: {
-      gradient: "linear-gradient(135deg, #34c759 0%, #30d158 100%)",
-      shadow: "0 4px 12px rgba(52, 199, 89, 0.4)",
-      icon: <Box component="span">▶️</Box>,
+      label: "RUNNING",
+      icon: <AutorenewIcon className="animate-spin" />,
+      background: "rgba(16, 160, 127, 0.1)",
+      textColor: "var(--accent-primary)",
+      borderColor: "rgba(16, 160, 127, 0.3)",
     },
     finished: {
-      gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-      shadow: "0 4px 12px rgba(102, 126, 234, 0.4)",
-      icon: <Box component="span">✅</Box>,
+      label: "FINISHED",
+      icon: <CheckCircleIcon />,
+      background: "rgba(13, 70, 161, 0.1)",
+      textColor: "var(--accent-secondary)",
+      borderColor: "rgba(13, 70, 161, 0.3)",
     },
     error: {
-      gradient: "linear-gradient(135deg, #ff3b30 0%, #ff453a 100%)",
-      shadow: "0 4px 12px rgba(255, 59, 48, 0.4)",
-      icon: <Box component="span">❌</Box>,
+      label: "ERROR",
+      icon: <ErrorIcon />,
+      background: "rgba(239, 68, 68, 0.1)",
+      textColor: "#ef4444",
+      borderColor: "rgba(239, 68, 68, 0.3)",
     },
     idle: {
-      gradient: "linear-gradient(135deg, #8e8e93 0%, #636366 100%)",
-      shadow: "0 4px 12px rgba(142, 142, 147, 0.4)",
-      icon: <Box component="span">⏸️</Box>,
+      label: "IDLE",
+      icon: <PauseIcon />,
+      background: "rgba(149, 157, 165, 0.1)",
+      textColor: "var(--text-secondary)",
+      borderColor: "rgba(149, 157, 165, 0.3)",
     },
     stopping: {
-      gradient: "linear-gradient(135deg, #ff9500 0%, #ff9f0a 100%)",
-      shadow: "0 4px 12px rgba(255, 149, 0, 0.4)",
-      icon: <Box component="span">⏹️</Box>,
+      label: "STOPPING",
+      icon: <AutorenewIcon className="animate-spin" />,
+      background: "rgba(217, 119, 6, 0.1)",
+      textColor: "var(--accent-tertiary)",
+      borderColor: "rgba(217, 119, 6, 0.3)",
     },
   };
+
   return configs[state] || configs.idle;
 }

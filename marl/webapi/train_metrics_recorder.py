@@ -25,22 +25,13 @@ class TrainMetricsRecorder:
             self._metrics.clear()
 
     def record(self, payload: Dict[str, Any]):
-        """
-        payload = {
-          "iter": int,
-          "reward_mean": float,
-          "alive_agents": int,
-          "fallen_agents": int,
-          "mean_x": float,
-          "delta_x": float,
-        }
-        """
+
         if not payload or "iter" not in payload:
             return
 
         with self._lock:
-            # garantiamo immutabilità verso l'esterno
             self._metrics.append(deepcopy(payload))
+
 
     # ------------------------
     # READ
@@ -54,6 +45,13 @@ class TrainMetricsRecorder:
             if not self._metrics:
                 return None
             return deepcopy(self._metrics[-1])
+
+    def get_tail(self, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._lock:
+            if limit <= 0:
+                return []
+            return deepcopy(self._metrics[-limit:])
+
 
     def summary(self) -> Dict[str, Any]:
         """
